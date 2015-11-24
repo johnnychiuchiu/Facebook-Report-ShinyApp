@@ -3,7 +3,7 @@ library(rCharts)
 library(dplyr)
 library(stringr)
 library(XLConnect)
-
+library(data.table)
 
 shinyUI(fluidPage(
   titlePanel("Facebook Report"),

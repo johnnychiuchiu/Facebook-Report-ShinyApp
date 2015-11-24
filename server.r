@@ -3,7 +3,7 @@ library(rCharts)
 library(dplyr)
 library(stringr)
 library(XLConnect)
-
+library(data.table)
 
 shinyServer(function(input, output, session){
   #### Read excel data into server.r
@@ -48,7 +48,19 @@ shinyServer(function(input, output, session){
       df_age_install<-df_age()
       df_age_install$行動應用程式安裝次數<-as.numeric(df_age_install$行動應用程式安裝次數)
       df_age_install$行動應用程式安裝次數[is.na(df_age_install$行動應用程式安裝次數)]<-0
-      colnames(df_age_install)<-c("Date","End_Date","Ad","Age","Gender","Campaign","Ad.Set","Reach","Clicks","Conversions","Spent")
+#       colnames(df_age_install)[which(colnames(df_age_install) == '分析報告開始')] <- 'Date'
+#       colnames(df_age_install)[which(colnames(df_age_install) == '分析報告結束')] <- 'End_Date'
+#       colnames(df_age_install)[which(colnames(df_age_install) == '廣告名稱')] <- 'Ad'
+#       colnames(df_age_install)[which(colnames(df_age_install) == '年齡')] <- "Age"
+#       colnames(df_age_install)[which(colnames(df_age_install) == '性別')] <- 'Gender'
+#       colnames(df_age_install)[which(colnames(df_age_install) == '行')] <- 'Campaign'
+#       colnames(df_age_install)[which(colnames(df_age_install) == '廣告組合名稱')] <- 'Ad.Set'
+#       colnames(df_age_install)[which(colnames(df_age_install) == '觸及人數')] <- 'Reach'
+#       colnames(df_age_install)[which(colnames(df_age_install) == '不重複點擊次數.全部.')] <- 'Clicks'
+#       colnames(df_age_install)[which(colnames(df_age_install) == '行動應用程式安裝次數')] <- 'Conversions'
+#       colnames(df_age_install)[which(colnames(df_age_install) == '支出金額..USD.')] <- 'Spent'
+      setnames(df_age_install,old=c('分析報告開始','分析報告結束','廣告名稱','年齡','性別','行銷活動名稱','廣告組合名稱','觸及人數','不重複點擊次數.全部.','行動應用程式安裝次數'
+                                    ,'支出金額..USD.'),new=c('Date','End_Date','Ad',"Age","Gender","Campaign","Ad.Set","Reach","Clicks","Conversions",'Spent'))
       df_age_install
     }else{
       return(NULL)
@@ -59,7 +71,19 @@ shinyServer(function(input, output, session){
       df_device_install<-df_device()
       df_device_install$行動應用程式安裝次數<-as.numeric(df_device_install$行動應用程式安裝次數)
       df_device_install$行動應用程式安裝次數[is.na(df_device_install$行動應用程式安裝次數)]<-0
-      colnames(df_device_install)<-c("Date","End_Date","Ad","Placement","Device","Campaign","Ad.Set","Reach","Clicks","Conversions","Spent")
+#       colnames(df_device_install)[which(colnames(df_device_install) == '分析報告開始')] <- 'Date'
+#       colnames(df_device_install)[which(colnames(df_device_install) == '分析報告結束')] <- 'End_Date'
+#       colnames(df_device_install)[which(colnames(df_device_install) == '廣告名稱')] <- 'Ad'
+#       colnames(df_device_install)[which(colnames(df_device_install) == '版位')] <- 'Placement'
+#       colnames(df_device_install)[which(colnames(df_device_install) == '瀏覽次數裝置')] <- 'Device'
+#       colnames(df_device_install)[which(colnames(df_device_install) == '行銷活動名稱')] <- 'Campaign'
+#       colnames(df_device_install)[which(colnames(df_device_install) == '廣告組合名稱')] <- 'Ad.Set'
+#       colnames(df_device_install)[which(colnames(df_device_install) == '觸及人數')] <- 'Reach'
+#       colnames(df_device_install)[which(colnames(df_device_install) == '不重複點.全部.')] <- 'Clicks'
+#       colnames(df_device_install)[which(colnames(df_device_install) == '行動應用程式安裝次數')] <- 'Conversions'
+#       colnames(df_device_install)[which(colnames(df_device_install) == '支出金額..USD.')] <- 'Spent'
+      setnames(df_device_install,old=c('分析報告開始','分析報告結束','廣告名稱','版位','瀏覽次數裝置','行銷活動名稱','廣告組合名稱','觸及人數','不重複點擊次數.全部.','行動應用程式安裝次數'
+                                       ,'支出金額..USD.'),new=c("Date","End_Date","Ad","Placement","Device","Campaign","Ad.Set","Reach","Clicks","Conversions","Spent"))
       df_device_install
     }else{
       return(NULL)
@@ -77,7 +101,7 @@ comment<-{
 #     }
 #   })
 #   df_device_fanpage <- reactive({
-#     if("粉絲專頁的讚" %in% colnames(df_device())){
+#     if("粉絲專" %in% colnames(df_device())){
 #       df_device_fanpage<-df_device()
 #       df_device_fanpage
 #     }else{
@@ -129,7 +153,7 @@ comment<-{
   observe({
     updateDateRangeInput(session, "date_range",
                          start = min(df_1()$分析報告開始),
-                         end = max(df_1()$分析報告),
+                         end = max(df_1()$分析報告開始),
                          min = min(df_1()$分析報告開始),
                          max = max(df_1()$分析報告開始))
   })
@@ -137,7 +161,7 @@ comment<-{
   df_1_creative<- reactive({
     data<-df_1()
     x<-dim(data)[2]+1
-    data<-cbind(data,str_split_fixed(data$廣告名, "0", 2)[,1])
+    data<-cbind(data,str_split_fixed(data$廣告名稱, "0", 2)[,1])
     colnames(data)[x]<-c("Creative_Set")
     data$Creative_Set<-as.character(data$Creative_Set)
     data
@@ -985,12 +1009,12 @@ comment<-{
     max_date<-input$date_range[2]
 #     data2<-cbind(data,Placement_Type=data$Placement)
 #     data2$Placement_Type<-as.character(data2$Placement_Type)
-#     data2$Placement_Type[data2$Placement_Type=="行動裝置"] <-c("行動裝置")
+#     data2$Placement_Type[data2$Placement_Type=="行動裝置上的動態消息"] <-c("行動裝置")
 #     data2$Placement_Type[data2$Placement_Type=="行動裝置的Instagram"] <-c("行動裝置")
-#     data2$Placement_Type[data2$Placement_Type=="第三方行動應用程式上的行動廣告聯播網"] <-c("行動裝置")
+#     data2$Placement_Type[data2$Placement_Type=="第三方行動應用程式上的行動廣告"] <-c("行動裝置")
 #     data2$Placement_Type[data2$Placement_Type=="桌面電腦的動態消息"] <-c("桌面電腦")
 #     data2$Placement_Type[data2$Placement_Type=="桌面電腦的右欄廣告"] <-c("桌面電腦")
-#     data2$Placement_Type[data2$Placement_Type=="桌面版電腦"] <-c("桌面電腦")
+#     data2$Placement_Type[data2$Placement_Type=="桌面版電腦的首頁右欄廣告"] <-c("桌面電腦")
     data<- data %>%
       filter(Date <= max_date) %>% 
       filter(Date >= min_date) %>%
