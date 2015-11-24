@@ -95,7 +95,7 @@ shinyServer(function(input, output, session){
       if("連結點擊次數" %in% colnames(df_age())){
         df_age_websiteclick<-df_age()
         setnames(df_age_websiteclick,old = c('分析報告開始','行銷活動名稱','廣告組合名稱','廣告名稱','年齡','性別','成果','觸及人數','點擊次數.全部.'
-                                        ,'支出金額..USD.'),new = c('Date','Campaign','Ad.Set','Ad','Age','Gender','link_click','Reach','Clicks','Spent'))
+                                        ,'支出金額..USD.'),new = c('Date','Campaign','Ad.Set','Ad','Age','Gender','Link_Click','Reach','Clicks','Spent'))
         df_age_websiteclick
       }else{
         return(NULL)
@@ -104,8 +104,9 @@ shinyServer(function(input, output, session){
     df_device_websiteclick <- reactive({
       if("連結點擊次數" %in% colnames(df_device())){
         df_device_websiteclick<-df_device()
-        setnames(df_device_websiteclick,old = c('分析報告開始','行','廣告組合名稱','廣告名稱','版位','瀏覽次數裝置','成果','觸及人數','點擊次數.全部.'
-                                           ,'支出金額..USD.'),new = c('Date','Campaign','Ad.Set','Ad','Placement','Device','link_click','Reach','Clicks','Spent'))
+        setnames(df_device_websiteclick,old = c('分析報告開始'
+            ,'廣告組合名稱','廣告名稱','版位','瀏覽次數裝置','成果','觸及人數','點擊次數.全部.'
+            ,'行銷活動名稱','支出金額..USD.'), new = c('Date','Ad.Set','Ad','Placement','Device','Link_Click','Reach','Clicks','Campaign','Spent'))
         df_device_websiteclick
       }else{
         return(NULL)
@@ -190,8 +191,8 @@ comment<-{
     updateSelectInput(session,  "creative_input",
       choices=unique(df_3()$Creative_Set_2))
   })
-  
-  ####廣告related####
+  ###################################廣告組合related###########################################
+  ####Install####
   ###Table
   #generate
   data_selected_adset_table <-reactive({
@@ -537,7 +538,7 @@ comment<-{
     #     data2$Placement_Type<-as.character(data2$Placement_Type)
     #     data2$Placement_Type[data2$Placement_Type=="行動裝置上的動態消息"] <-c("行動裝置")
     #     data2$Placement_Type[data2$Placement_Type=="行動裝置的Instagram"] <-c("行動裝置")
-    #     data2$Placement_Type[data2$Placement_Type=="第三方行動應用程式上的行動"] <-c("行動裝置")
+    #     data2$Placement_Type[data2$Placement_Type=="第三方行動應用程式上的行動廣告聯播網"] <-c("行動裝置")
     #     data2$Placement_Type[data2$Placement_Type=="桌面電腦的動態消息"] <-c("桌面電腦")
     #     data2$Placement_Type[data2$Placement_Type=="桌面電腦的右欄廣告"] <-c("桌面電腦")
     #     data2$Placement_Type[data2$Placement_Type=="桌面版電腦的首頁右欄廣告"] <-c("桌面電腦")
@@ -658,9 +659,471 @@ comment<-{
     return(h30)
   })
   
+  ##############WebsiteClick###################
+  ###Table
+  #generate a adset df (selected)
+  data_selected_adset_table_websiteclick<-reactive({
+    data <- df_age_websiteclick()
+    selected_adset<- input$y_input
+    min_date<-input$date_range[1]
+    max_date<-input$date_range[2]
+    data <- data %>% 
+      filter(Ad.Set==selected_adset) %>%
+      filter(Date <= max_date) %>% 
+      filter(Date >= min_date) %>%
+      summarize(Total_Reach=sum(Reach),
+                Total_Clicks=sum(Clicks),
+                Total_Link_Click=sum(Link_Click),
+                Total_Spent=sum(Spent)) %>%
+      mutate(Total_Cpm=Total_Spent*1000/Total_Reach,
+             Total_Cpc=Total_Spent/Total_Clicks,
+             Total_Ctr=Total_Clicks/Total_Reach,
+             Total_Link_Ctr=Total_Link_Click/Total_Reach,
+             Total_Link_Cpc=Total_Spent/Total_Link_Click)
+    data$Total_Link_Cpc <- ifelse(data$Total_Link_Cpc == "Inf", 
+                                  data$Total_Spent, data$Total_Link_Cpc)
+    data$Total_Cpc <- ifelse(data$Total_Cpc == "Inf", 
+                             data$Total_Spent, data$Total_Cpc)
+    data
+  })
+  
+  #output the table in the ui
+  output$adset_table_websiteclick <- renderDataTable({
+    data_selected_adset_table_websiteclick()
+  })
+  ###Plot
+  ##Bacis Plot(selected)
+  #generate a df for the plot
+  data_basic_selected_Date_websiteclick<-reactive({
+    data <- df_age_websiteclick()
+    selected_adset<- input$y_input
+    min_date<-input$date_range[1]
+    max_date<-input$date_range[2]
+    data <- data %>% 
+      filter(Ad.Set==selected_adset) %>%
+      filter(Date <= max_date) %>% 
+      filter(Date >= min_date) %>%
+      group_by(Date) %>%
+      summarize(Total_Reach=sum(Reach),
+                Total_Clicks=sum(Clicks),
+                Total_Link_Click=sum(Link_Click),
+                Total_Spent=sum(Spent)) %>%
+      mutate(Total_Cpm=Total_Spent*1000/Total_Reach,
+             Total_Cpc=Total_Spent/Total_Clicks,
+             Total_Ctr=Total_Clicks/Total_Reach,
+             Total_Link_Ctr=Total_Link_Click/Total_Reach,
+             Total_Link_Cpc=Total_Spent/Total_Link_Click)
+    data$Total_Link_Cpc <- ifelse(data$Total_Link_Cpc == "Inf", 
+                                  data$Total_Spent, data$Total_Link_Cpc)
+    data$Total_Cpc <- ifelse(data$Total_Cpc == "Inf", 
+                             data$Total_Spent, data$Total_Cpc)
+    data<-transform(data, Date = as.character(Date))
+    data
+  })
+  #use the df to draw the basic plots
+  output$h46 <- renderChart2({
+    if(is.null(df_age_websiteclick())){return ()}
+    h46 <- Highcharts$new()
+    h46$xAxis(categories = data_basic_selected_Date_websiteclick()$Date)
+    h46$yAxis(list(list(title = list(text = 'Reach')), 
+                   list(title = list(text = 'CPM'), opposite = TRUE)))
+    h46$series(name = 'Reach', type = 'column', color = '#4572A7',
+               data = data_basic_selected_Date_websiteclick()$Total_Reach)
+    h46$series(name = 'CPM', type = 'spline', color = '#006600',
+               data = data_basic_selected_Date_websiteclick()$Total_Cpm,
+               yAxis = 1)
+    h46$title(text =("Reach/CPM vs Date"))
+    return(h46)
+  })
+  output$h47 <- renderChart2({
+    if(is.null(df_age_websiteclick())){return ()}
+    
+    h47 <- Highcharts$new()
+    h47$xAxis(categories = data_basic_selected_Date_websiteclick()$Date)
+    h47$yAxis(list(list(title = list(text = 'Clicks')), 
+                   list(title = list(text = 'CPC'), opposite = TRUE)))
+    h47$series(name = 'Clicks', type = 'column', color = '#4572A7',
+               data = data_basic_selected_Date_websiteclick()$Total_Clicks)
+    h47$series(name = 'CPC', type = 'spline', color = '#AA4643',
+               data = data_basic_selected_Date_websiteclick()$Total_Cpc,
+               yAxis = 1)
+    h47$title(text =("Clicks/CPC vs Date"))
+    return(h47)
+  })
+  output$h48 <- renderChart2({
+    if(is.null(df_age_websiteclick())){return ()}
+    
+    h48 <- Highcharts$new()
+    h48$xAxis(categories = data_basic_selected_Date_websiteclick()$Date)
+    h48$yAxis(list(list(title = list(text = 'CPM')), 
+                   list(title = list(text = 'CPC'), opposite = TRUE)))
+    h48$series(name = 'CPM', type = 'spline', color = '#006600',
+               data = data_basic_selected_Date_websiteclick()$Total_Cpm)
+    h48$series(name = 'CPC', type = 'spline', color = '#AA4643',
+               data = data_basic_selected_Date_websiteclick()$Total_Cpc,
+               yAxis = 1)
+    h48$title(text =("CPM/CPC vs Date"))
+    return(h48)
+  })
+  
+  ##Age Plot(selected)
+  #generate a age df
+  data_selected_age_websiteclick<- reactive({
+    data<-df_age_websiteclick()
+    selected_adset<- input$y_input
+    min_date<-input$date_range[1]
+    max_date<-input$date_range[2]
+    data<- data %>%
+      filter(Ad.Set==selected_adset) %>%
+      filter(Date <= max_date) %>% 
+      filter(Date >= min_date) %>%
+      group_by(Age) %>% 
+      summarize(Total_Reach=sum(Reach),
+                Total_Clicks=sum(Clicks),
+                Total_Link_Click=sum(Link_Click),
+                Total_Spent=sum(Spent)) %>%
+      mutate(Total_Cpm=Total_Spent*1000/Total_Reach,
+             Total_Cpc=Total_Spent/Total_Clicks,
+             Total_Ctr=Total_Clicks/Total_Reach,
+             Total_Link_Ctr=Total_Link_Click/Total_Reach,
+             Total_Link_Cpc=Total_Spent/Total_Link_Click)
+    data$Total_Link_Cpc <- ifelse(data$Total_Link_Cpc == "Inf", 
+                                  data$Total_Spent, data$Total_Link_Cpc)
+    data$Total_Cpc <- ifelse(data$Total_Cpc == "Inf", 
+                             data$Total_Spent, data$Total_Cpc)
+    data
+  })
+  #plot age
+  output$h49 <- renderChart2({
+    if(is.null(df_age_websiteclick())){return ()}
+    h49 <- Highcharts$new()
+    h49$xAxis(categories = data_selected_age_websiteclick()$Age)
+    h49$yAxis(list(list(title = list(text = 'Reach'))
+                   ,list(title = list(text = 'CPM'), opposite = TRUE)))
+    h49$series(name = 'Reach', type = 'column', color = '#4572A7',
+               data = data_selected_age_websiteclick()$Total_Reach)
+    h49$series(name = 'CPM', type = 'spline', color = '#006600',
+               data = data_selected_age_websiteclick()$Total_Cpm,
+               yAxis = 1)
+    h49$title(text =("Reach/CPM vs Age"))
+    return(h49)
+  })
+  output$h50 <- renderChart2({
+    if(is.null(df_age_websiteclick())){return ()}
+    h50 <- Highcharts$new()
+    h50$xAxis(categories = data_selected_age_websiteclick()$Age)
+    h50$yAxis(list(list(title = list(text = 'Clicks'))
+                   ,list(title = list(text = 'CTR'), opposite = TRUE) 
+                   ,list(title = list(text = 'CPC'), opposite = TRUE)))
+    h50$series(name = 'Clicks', type = 'column', color = '#4572A7',
+               data = data_selected_age_websiteclick()$Total_Clicks)
+    h50$series(name = 'CTR', type = 'spline', color = '#FF9655',
+               data = data_selected_age_websiteclick()$Total_Ctr,
+               yAxis = 1)
+    h50$series(name = 'CPC', type = 'spline', color = '#AA4643',
+               data = data_selected_age_websiteclick()$Total_Cpc,
+               yAxis = 2)
+    h50$title(text =("Clicks/CTR/CPC vs Age"))
+    return(h50)
+  })
+  
+  ##Gender Plot(selected)
+  #generate a gender df
+  data_selected_gender_websiteclick<- reactive({
+    data<-df_age_websiteclick()
+    selected_adset<- input$y_input
+    min_date<-input$date_range[1]
+    max_date<-input$date_range[2]
+    data<- data %>%
+      filter(Ad.Set==selected_adset) %>%
+      filter(Date <= max_date) %>% 
+      filter(Date >= min_date) %>%
+      group_by(Gender) %>% 
+      summarize(Total_Reach=sum(Reach),
+                Total_Clicks=sum(Clicks),
+                Total_Link_Click=sum(Link_Click),
+                Total_Spent=sum(Spent)) %>%
+      mutate(Total_Cpm=Total_Spent*1000/Total_Reach,
+             Total_Cpc=Total_Spent/Total_Clicks,
+             Total_Ctr=Total_Clicks/Total_Reach,
+             Total_Link_Ctr=Total_Link_Click/Total_Reach,
+             Total_Link_Cpc=Total_Spent/Total_Link_Click)
+    data$Total_Link_Cpc <- ifelse(data$Total_Link_Cpc == "Inf", 
+                                  data$Total_Spent, data$Total_Link_Cpc)
+    data$Total_Cpc <- ifelse(data$Total_Cpc == "Inf", 
+                             data$Total_Spent, data$Total_Cpc)
+    data
+  })
+  #plot gender
+  output$h51 <- renderChart2({
+    if(is.null(df_age_websiteclick())){return ()}
+    h51 <- Highcharts$new()
+    h51$xAxis(categories = data_selected_gender_websiteclick()$Gender)
+    h51$yAxis(list(list(title = list(text = 'Reach'))
+                   ,list(title = list(text = 'CPM'), opposite = TRUE))) 
+    h51$series(name = 'Reach', type = 'column', color = '#4572A7',
+               data = data_selected_gender_websiteclick()$Total_Reach)
+    h51$series(name = 'CPM', type = 'spline', color = '#006600',
+               data = data_selected_gender_websiteclick()$Total_Cpm,
+               yAxis = 1)
+    h51$title(text =("Reach/CPM vs Gender"))
+    return(h51)
+  })
+  output$h52 <- renderChart2({
+    if(is.null(df_age_websiteclick())){return ()}
+    h52 <- Highcharts$new()
+    h52$xAxis(categories = data_selected_gender_websiteclick()$Gender)
+    h52$yAxis(list(list(title = list(text = 'Clicks'))
+                   ,list(title = list(text = 'CTR'), opposite = TRUE)
+                   ,list(title = list(text = 'CPC'), opposite = TRUE)))
+    h52$series(name = 'Clicks', type = 'column', color = '#4572A7',
+               data = data_selected_gender_websiteclick()$Total_Clicks)
+    h52$series(name = 'CTR', type = 'spline', color = '#FF9655',
+               data = data_selected_gender_websiteclick()$Total_Ctr,
+               yAxis = 1)
+    h52$series(name = 'CPC', type = 'spline', color = '#AA4643',
+               data = data_selected_gender_websiteclick()$Total_Cpc,
+               yAxis = 2)
+    h52$title(text =("Clicks/CTR/CPC vs Gender"))
+    return(h52)
+  })
+  
+  ##Gender Age Plot(selected)
+  #generate a gender age df
+  data_selected_gender_age_websiteclick<- reactive({
+    data<-df_age_websiteclick()
+    selected_adset<- input$y_input
+    min_date<-input$date_range[1]
+    max_date<-input$date_range[2]
+    data<- data %>%
+      filter(Ad.Set==selected_adset) %>%
+      filter(Date <= max_date) %>% 
+      filter(Date >= min_date) %>%
+      group_by(Gender, Age) %>% 
+      summarize(Total_Reach=sum(Reach),
+                Total_Clicks=sum(Clicks),
+                Total_Link_Click=sum(Link_Click),
+                Total_Spent=sum(Spent)) 
+    data
+  })
+  #plot gender age
+  output$n7 <- renderChart2({
+    if(is.null(df_age_websiteclick())){return ()}
+    n7 <- nPlot(Total_Reach ~ Gender, group = "Age", data = data_selected_gender_age_websiteclick(), type = "multiBarChart")
+    #n1$set(width = 400, height = 400) # mk changed width to 800 and height to 500
+    n7$templates$script <- "http://timelyportfolio.github.io/rCharts_nvd3_templates/chartWithTitle_styled.html"
+    n7$set(title = "Reach---Gender vs Age")
+    n7$addParams(dom="n7")
+    return(n7)
+  })
+  output$n8 <- renderChart2({
+    if(is.null(df_age_websiteclick())){return ()}
+    n8 <- nPlot(Total_Clicks ~ Gender, group = "Age", data = data_selected_gender_age_websiteclick(), type = "multiBarChart")
+    n8$templates$script <- "http://timelyportfolio.github.io/rCharts_nvd3_templates/chartWithTitle_styled.html"
+    n8$set(title = "Clicks---Gender vs Age")
+    n8$addParams(dom="n8")
+    return(n8)
+  })
+  
+  ##CreativeSet Plot(selected)
+  #generate a creativeset df
+  data_selected_creative_websiteclick<- reactive({
+    data<-df_age_websiteclick()
+    selected_adset<- input$y_input
+    x<-dim(data)[2]+1
+    y<-dim(data)[2]+3
+    min_date<-input$date_range[1]
+    max_date<-input$date_range[2]
+    data<-cbind(data,str_split_fixed(data$Ad.Set, "_", 5)[,1:2])
+    data<-cbind(data,str_split_fixed(data$Ad.Set, "_", 5)[,5])
+    colnames(data)[x:y]<-c("Creative_Set","TA","Bid_Type")
+    data<- data %>%
+      filter(Ad.Set==selected_adset) %>%
+      filter(Date <= max_date) %>% 
+      filter(Date >= min_date) %>%
+      group_by(Creative_Set) %>% 
+      summarize(Total_Reach=sum(Reach),
+                Total_Clicks=sum(Clicks),
+                Total_Link_Click=sum(Link_Click),
+                Total_Spent=sum(Spent)) %>%
+      mutate(Total_Cpm=Total_Spent*1000/Total_Reach,
+             Total_Cpc=Total_Spent/Total_Clicks,
+             Total_Ctr=Total_Clicks/Total_Reach,
+             Total_Link_Ctr=Total_Link_Click/Total_Reach,
+             Total_Link_Cpc=Total_Spent/Total_Link_Click)
+    data$Total_Link_Cpc <- ifelse(data$Total_Link_Cpc == "Inf", 
+                                  data$Total_Spent, data$Total_Link_Cpc)
+    data$Total_Cpc <- ifelse(data$Total_Cpc == "Inf", 
+                             data$Total_Spent, data$Total_Cpc)
+    data
+  })
+  #plot creativeset
+  output$h53 <- renderChart2({
+    if(is.null(df_age_websiteclick())){return ()}
+    h53 <- Highcharts$new()
+    h53$xAxis(categories = data_selected_creative_websiteclick()$Creative_Set)
+    h53$yAxis(list(list(title = list(text = 'Reach'))
+                   ,list(title = list(text = 'CPM'), opposite = TRUE)))
+    h53$series(name = 'Reach', type = 'column', color = '#4572A7',
+               data = data_selected_creative_websiteclick()$Total_Reach)
+    h53$series(name = 'CPM', type = 'spline', color = '#006600',
+               data = data_selected_creative_websiteclick()$Total_Cpm,
+               yAxis = 1)
+    h53$title(text =("Reach/CPM vs CreativeSet"))
+    return(h53)
+  })
+  output$h54 <- renderChart2({
+    if(is.null(df_age_websiteclick())){return ()}
+    h54 <- Highcharts$new()
+    h54$xAxis(categories = data_selected_creative_websiteclick()$Creative_Set)
+    h54$yAxis(list(list(title = list(text = 'Clicks'))
+                   ,list(title = list(text = 'CTR'), opposite = TRUE)
+                   ,list(title = list(text = 'CPC'), opposite = TRUE)))
+    h54$series(name = 'Clicks', type = 'column', color = '#4572A7',
+               data = data_selected_creative_websiteclick()$Total_Clicks)
+    h54$series(name = 'CTR', type = 'spline', color = '#FF9655',
+               data = data_selected_creative_websiteclick()$Total_Ctr,
+               yAxis = 1)
+    h54$series(name = 'CPC', type = 'spline', color = '#AA4643',
+               data = data_selected_creative_websiteclick()$Total_Cpc,
+               yAxis = 2)
+    h54$title(text =("Clicks/CTR/CPC vs CreativeSet"))
+    return(h54)
+  })
+  
+  ##Placement Plot(selected)
+  #generate a placement df
+  data_selected_placement_websiteclick<- reactive({
+    data<-df_device_websiteclick()
+    selected_adset<- input$y_input
+    min_date<-input$date_range[1]
+    max_date<-input$date_range[2]
+    #     data2<-cbind(data,Placement_Type=data$Placement)
+    #     data2$Placement_Type<-as.character(data2$Placement_Type)
+    #     data2$Placement_Type[data2$Placement_Type=="行動裝置上的動態消息"] <-c("行動裝置")
+    #     data2$Placement_Type[data2$Placement_Type=="行動裝置的Instagram"] <-c("行動裝置")
+    #     data2$Placement_Type[data2$Placement_Type=="第三方行動應用程式上的行動廣告聯播網"] <-c("行動裝置")
+    #     data2$Placement_Type[data2$Placement_Type=="桌面電腦的動態消息"] <-c("桌面電腦")
+    #     data2$Placement_Type[data2$Placement_Type=="桌面電腦的右欄廣告"] <-c("桌面電腦")
+    #     data2$Placement_Type[data2$Placement_Type=="桌面版電腦的首頁右欄廣告"] <-c("桌面電腦")
+    data<- data %>%
+      filter(Ad.Set==selected_adset) %>%
+      filter(Date <= max_date) %>% 
+      filter(Date >= min_date) %>%
+      group_by(Placement) %>% 
+      summarize(Total_Reach=sum(Reach),
+                Total_Clicks=sum(Clicks),
+                Total_Link_Click=sum(Link_Click),
+                Total_Spent=sum(Spent)) %>%
+      mutate(Total_Cpm=Total_Spent*1000/Total_Reach,
+             Total_Cpc=Total_Spent/Total_Clicks,
+             Total_Ctr=Total_Clicks/Total_Reach,
+             Total_Link_Ctr=Total_Link_Click/Total_Reach,
+             Total_Link_Cpc=Total_Spent/Total_Link_Click)
+    data$Total_Link_Cpc <- ifelse(data$Total_Link_Cpc == "Inf", 
+                                  data$Total_Spent, data$Total_Link_Cpc)
+    data$Total_Cpc <- ifelse(data$Total_Cpc == "Inf", 
+                             data$Total_Spent, data$Total_Cpc)
+    data
+  })
+  #plot placement
+  output$h55 <- renderChart2({
+    if(is.null(df_device_websiteclick())){return ()}
+    h55 <- Highcharts$new()
+    h55$xAxis(categories = data_selected_placement_websiteclick()$Placement)
+    h55$yAxis(list(list(title = list(text = 'Reach'))
+                   ,list(title = list(text = 'CPM'), opposite = TRUE))) 
+    h55$series(name = 'Reach', type = 'column', color = '#4572A7',
+               data = data_selected_placement_websiteclick()$Total_Reach)
+    h55$series(name = 'CPM', type = 'spline', color = '#006600',
+               data = data_selected_placement_websiteclick()$Total_Cpm,
+               yAxis = 1)
+    h55$title(text =("Reach/CPM vs Placement"))
+    return(h55)
+  })
+  output$h56 <- renderChart2({
+    if(is.null(df_device_websiteclick())){return ()}
+    h56 <- Highcharts$new()
+    h56$xAxis(categories = data_selected_placement_websiteclick()$Placement)
+    h56$yAxis(list(list(title = list(text = 'Clicks'))
+                   ,list(title = list(text = 'CTR'), opposite = TRUE)
+                   ,list(title = list(text = 'CPC'), opposite = TRUE)))
+    h56$series(name = 'Clicks', type = 'column', color = '#4572A7',
+               data = data_selected_placement_websiteclick()$Total_Clicks)
+    h56$series(name = 'CTR', type = 'spline', color = '#FF9655',
+               data = data_selected_placement_websiteclick()$Total_Ctr,
+               yAxis = 1)
+    h56$series(name = 'CPC', type = 'spline', color = '#AA4643',
+               data = data_selected_placement_websiteclick()$Total_Cpc,
+               yAxis = 2)
+    h56$title(text =("Clicks/CTR/CPC vs Placement"))
+    return(h56)
+  })
+  
+  ##Device Plot(selected)
+  #generate a device df
+  data_selected_device_websiteclick<- reactive({
+    data<-df_device_websiteclick()
+    selected_adset<- input$y_input
+    min_date<-input$date_range[1]
+    max_date<-input$date_range[2]
+    data<- data %>%
+      filter(Ad.Set==selected_adset) %>%
+      filter(Date <= max_date) %>% 
+      filter(Date >= min_date) %>%
+      group_by(Device) %>% 
+      summarize(Total_Reach=sum(Reach),
+                Total_Clicks=sum(Clicks),
+                Total_Link_Click=sum(Link_Click),
+                Total_Spent=sum(Spent)) %>%
+      mutate(Total_Cpm=Total_Spent*1000/Total_Reach,
+             Total_Cpc=Total_Spent/Total_Clicks,
+             Total_Ctr=Total_Clicks/Total_Reach,
+             Total_Link_Ctr=Total_Link_Click/Total_Reach,
+             Total_Link_Cpc=Total_Spent/Total_Link_Click)
+    data$Total_Link_Cpc <- ifelse(data$Total_Link_Cpc == "Inf", 
+                                  data$Total_Spent, data$Total_Link_Cpc)
+    data$Total_Cpc <- ifelse(data$Total_Cpc == "Inf", 
+                             data$Total_Spent, data$Total_Cpc)
+    data
+  })
+  #plot device
+  output$h57 <- renderChart2({
+    if(is.null(df_device_websiteclick())){return ()}
+    h57 <- Highcharts$new()
+    h57$xAxis(categories = data_device_websiteclick()$Device)
+    h57$yAxis(list(list(title = list(text = 'Reach'))
+                   ,list(title = list(text = 'CPM'), opposite = TRUE))) 
+    h57$series(name = 'Reach', type = 'column', color = '#4572A7',
+               data = data_device_websiteclick()$Total_Reach)
+    h57$series(name = 'CPM', type = 'spline', color = '#006600',
+               data = data_device_websiteclick()$Total_Cpm,
+               yAxis = 1)
+    h57$title(text =("Reach/CPM vs Device"))
+    return(h57)
+  })
+  output$h58 <- renderChart2({
+    if(is.null(df_device_websiteclick())){return ()}
+    h58 <- Highcharts$new()
+    h58$xAxis(categories = data_device_websiteclick()$Device)
+    h58$yAxis(list(list(title = list(text = 'Clicks'))
+                   ,list(title = list(text = 'CTR'), opposite = TRUE)
+                   ,list(title = list(text = 'CPC'), opposite = TRUE)))
+    h58$series(name = 'Clicks', type = 'column', color = '#4572A7',
+               data = data_device_websiteclick()$Total_Clicks)
+    h58$series(name = 'CTR', type = 'spline', color = '#FF9655',
+               data = data_device_websiteclick()$Total_Ctr,
+               yAxis = 1)
+    h58$series(name = 'CPC', type = 'spline', color = '#AA4643',
+               data = data_device_websiteclick()$Total_Cpc,
+               yAxis = 2)
+    h58$title(text =("Clicks/CTR/CPC vs Device"))
+    return(h58)
+  })
   
   
-  ####Campaign####
+  #######################################Campaign#######################################
+  ##############Install###################
   ###generate a campaign df 
   data_campaign_table<-reactive({
     data <- df_age_install()
@@ -690,7 +1153,39 @@ comment<-{
     data_campaign_table()
   })
   
-  ####Summary
+  ##############WebsiteClick###################
+#   ###generate a campaign df 
+  data_campaign_table_websiteclick<-reactive({
+    data <- df_age_websiteclick()
+    min_date<-input$date_range[1]
+    max_date<-input$date_range[2]
+    data <- data %>% 
+      filter(Date <= max_date) %>% 
+      filter(Date >= min_date) %>%
+      group_by(Campaign) %>%
+      summarize(Total_Reach=sum(Reach),
+                Total_Clicks=sum(Clicks),
+                Total_Link_Click=sum(Link_Click),
+                Total_Spent=sum(Spent)) %>%
+      mutate(Total_Cpm=Total_Spent*1000/Total_Reach,
+             Total_Cpc=Total_Spent/Total_Clicks,
+             Total_Ctr=Total_Clicks/Total_Reach,
+             Total_Link_Ctr=Total_Link_Click/Total_Reach,
+             Total_Link_Cpc=Total_Spent/Total_Link_Click)
+    data$Total_Link_Cpc <- ifelse(data$Total_Link_Cpc == "Inf", 
+                                  data$Total_Spent, data$Total_Link_Cpc)
+    data$Total_Cpc <- ifelse(data$Total_Cpc == "Inf", 
+                             data$Total_Spent, data$Total_Cpc)
+    data
+  })
+  
+  #output the table in the ui
+  output$campaign_table_websiteclick <- renderDataTable({
+    data_campaign_table_websiteclick()
+  })
+  
+  ######################################Summary########################################
+  ##############Install###################
   ###Table
   #generate a summary df 
   data_summary_table<-reactive({
@@ -1020,12 +1515,12 @@ comment<-{
     max_date<-input$date_range[2]
 #     data2<-cbind(data,Placement_Type=data$Placement)
 #     data2$Placement_Type<-as.character(data2$Placement_Type)
-#     data2$Placement_Type[data2$Placement_Type=="行"] <-c("行動裝置")
-#     data2$Placement_Type[data2$Placement_Type=="行動裝置的Instagram"] <-c("行動裝置")
+#     data2$Placement_Type[data2$Placement_Type=="行動裝置上的動態消息"] <-c("行動裝置")
+#     data2$Placement_Type[data2$Placement_Type=="行動裝置的Instagram"] <-c("行動")
 #     data2$Placement_Type[data2$Placement_Type=="第三方行動應用程式上的行動廣告聯播網"] <-c("行動裝置")
 #     data2$Placement_Type[data2$Placement_Type=="桌面電腦的動態消息"] <-c("桌面電腦")
 #     data2$Placement_Type[data2$Placement_Type=="桌面電腦的右欄廣告"] <-c("桌面電腦")
-#     data2$Placement_Type[data2$Placement_Type=="桌面版電腦"] <-c("桌面電腦")
+#     data2$Placement_Type[data2$Placement_Type=="桌面版電腦的首頁右欄廣告"] <-c("桌面電腦")
     data<- data %>%
       filter(Date <= max_date) %>% 
       filter(Date >= min_date) %>%
@@ -1140,8 +1635,454 @@ comment<-{
     return(h26)
   })
   
+  ##############WebsiteClick###################
+  ###Table
+  #generate a summary df 
+  data_summary_table_websiteclick<-reactive({
+    data <- df_age_websiteclick()
+    min_date<-input$date_range[1]
+    max_date<-input$date_range[2]
+    data <- data %>% 
+      filter(Date <= max_date) %>% 
+      filter(Date >= min_date) %>%
+      summarize(Total_Reach=sum(Reach),
+                Total_Clicks=sum(Clicks),
+                Total_Link_Click=sum(Link_Click),
+                Total_Spent=sum(Spent)) %>%
+      mutate(Total_Cpm=Total_Spent*1000/Total_Reach,
+             Total_Cpc=Total_Spent/Total_Clicks,
+             Total_Ctr=Total_Clicks/Total_Reach,
+             Total_Link_Ctr=Total_Link_Click/Total_Reach,
+             Total_Link_Cpc=Total_Spent/Total_Link_Click)
+    data$Total_Link_Cpc <- ifelse(data$Total_Link_Cpc == "Inf", 
+                             data$Total_Spent, data$Total_Link_Cpc)
+    data$Total_Cpc <- ifelse(data$Total_Cpc == "Inf", 
+                             data$Total_Spent, data$Total_Cpc)
+    data
+  })
   
-  ####受眾####
+  #output the table in the ui
+  output$summary_table_websiteclick <- renderDataTable({
+    data_summary_table_websiteclick()
+  })
+  ###Plot
+  ##Bacis Plot
+  #generate a df for the plot
+  data_basic_Date_websiteclick<-reactive({
+    data <- df_age_websiteclick()
+    min_date<-input$date_range[1]
+    max_date<-input$date_range[2]
+    data <- data %>% 
+      filter(Date <= max_date) %>% 
+      filter(Date >= min_date) %>%
+      group_by(Date) %>%
+      summarize(Total_Reach=sum(Reach),
+                Total_Clicks=sum(Clicks),
+                Total_Link_Click=sum(Link_Click),
+                Total_Spent=sum(Spent)) %>%
+      mutate(Total_Cpm=Total_Spent*1000/Total_Reach,
+             Total_Cpc=Total_Spent/Total_Clicks,
+             Total_Ctr=Total_Clicks/Total_Reach,
+             Total_Link_Ctr=Total_Link_Click/Total_Reach,
+             Total_Link_Cpc=Total_Spent/Total_Link_Click)
+    data$Total_Link_Cpc <- ifelse(data$Total_Link_Cpc == "Inf", 
+                                  data$Total_Spent, data$Total_Link_Cpc)
+    data$Total_Cpc <- ifelse(data$Total_Cpc == "Inf", 
+                             data$Total_Spent, data$Total_Cpc)
+    data<-transform(data, Date = as.character(Date))
+    data
+  })
+  #use the df to draw the basic plots
+  output$h33 <- renderChart2({
+    if(is.null(df_age_websiteclick())){return ()}
+    h33 <- Highcharts$new()
+    h33$xAxis(categories = data_basic_Date_websiteclick()$Date)
+    h33$yAxis(list(list(title = list(text = 'Reach')), 
+                  list(title = list(text = 'CPM'), opposite = TRUE)))
+    h33$series(name = 'Reach', type = 'column', color = '#4572A7',
+              data = data_basic_Date_websiteclick()$Total_Reach)
+    h33$series(name = 'CPM', type = 'spline', color = '#006600',
+              data = data_basic_Date_websiteclick()$Total_Cpm,
+              yAxis = 1)
+    h33$title(text =("Reach/CPM vs Date"))
+    return(h33)
+  })
+  output$h34 <- renderChart2({
+    if(is.null(df_age_websiteclick())){return ()}
+    
+    h34 <- Highcharts$new()
+    h34$xAxis(categories = data_basic_Date_websiteclick()$Date)
+    h34$yAxis(list(list(title = list(text = 'Clicks')), 
+                  list(title = list(text = 'CPC'), opposite = TRUE)))
+    h34$series(name = 'Clicks', type = 'column', color = '#4572A7',
+              data = data_basic_Date_websiteclick()$Total_Clicks)
+    h34$series(name = 'CPC', type = 'spline', color = '#AA4643',
+              data = data_basic_Date_websiteclick()$Total_Cpc,
+              yAxis = 1)
+    h34$title(text =("Clicks/CPC vs Date"))
+    return(h34)
+  })
+  output$h35 <- renderChart2({
+    if(is.null(df_age_websiteclick())){return ()}
+    
+    h35 <- Highcharts$new()
+    h35$xAxis(categories = data_basic_Date_websiteclick()$Date)
+    h35$yAxis(list(list(title = list(text = 'CPM')), 
+                  list(title = list(text = 'CPC'), opposite = TRUE)))
+    h35$series(name = 'CPM', type = 'spline', color = '#006600',
+              data = data_basic_Date_websiteclick()$Total_Cpm)
+    h35$series(name = 'CPC', type = 'spline', color = '#AA4643',
+              data = data_basic_Date_websiteclick()$Total_Cpc,
+              yAxis = 1)
+    h35$title(text =("CPM/CPC vs Date"))
+    return(h35)
+  })
+  
+  ##Age Plot
+  #generate a age df
+  data_age_websiteclick<- reactive({
+    data<-df_age_websiteclick()
+    min_date<-input$date_range[1]
+    max_date<-input$date_range[2]
+    data<- data %>%
+      filter(Date <= max_date) %>% 
+      filter(Date >= min_date) %>%
+      group_by(Age) %>% 
+      summarize(Total_Reach=sum(Reach),
+                Total_Clicks=sum(Clicks),
+                Total_Link_Click=sum(Link_Click),
+                Total_Spent=sum(Spent)) %>%
+      mutate(Total_Cpm=Total_Spent*1000/Total_Reach,
+             Total_Cpc=Total_Spent/Total_Clicks,
+             Total_Ctr=Total_Clicks/Total_Reach,
+             Total_Link_Ctr=Total_Link_Click/Total_Reach,
+             Total_Link_Cpc=Total_Spent/Total_Link_Click)
+    data$Total_Link_Cpc <- ifelse(data$Total_Link_Cpc == "Inf", 
+                                  data$Total_Spent, data$Total_Link_Cpc)
+    data$Total_Cpc <- ifelse(data$Total_Cpc == "Inf", 
+                             data$Total_Spent, data$Total_Cpc)
+    data
+  })
+  #plot age
+  output$h36 <- renderChart2({
+    if(is.null(df_age_websiteclick())){return ()}
+    h36 <- Highcharts$new()
+    h36$xAxis(categories = data_age_websiteclick()$Age)
+    h36$yAxis(list(list(title = list(text = 'Reach'))
+                  ,list(title = list(text = 'CPM'), opposite = TRUE)))
+    h36$series(name = 'Reach', type = 'column', color = '#4572A7',
+              data = data_age_websiteclick()$Total_Reach)
+    h36$series(name = 'CPM', type = 'spline', color = '#006600',
+              data = data_age_websiteclick()$Total_Cpm,
+              yAxis = 1)
+    h36$title(text =("Reach/CPM vs Age"))
+    return(h36)
+  })
+  output$h37 <- renderChart2({
+    if(is.null(df_age_websiteclick())){return ()}
+    h37 <- Highcharts$new()
+    h37$xAxis(categories = data_age_websiteclick()$Age)
+    h37$yAxis(list(list(title = list(text = 'Clicks'))
+                  ,list(title = list(text = 'CTR'), opposite = TRUE) 
+                  ,list(title = list(text = 'CPC'), opposite = TRUE)))
+    h37$series(name = 'Clicks', type = 'column', color = '#4572A7',
+              data = data_age_websiteclick()$Total_Clicks)
+    h37$series(name = 'CTR', type = 'spline', color = '#FF9655',
+              data = data_age_websiteclick()$Total_Ctr,
+              yAxis = 1)
+    h37$series(name = 'CPC', type = 'spline', color = '#AA4643',
+              data = data_age_websiteclick()$Total_Cpc,
+              yAxis = 2)
+    h37$title(text =("Clicks/CTR/CPC vs Age"))
+    return(h37)
+  })
+  
+  ##Gender Plot
+  #generate a gender df
+  data_gender_websiteclick<- reactive({
+    data<-df_age_websiteclick()
+    min_date<-input$date_range[1]
+    max_date<-input$date_range[2]
+    data<- data %>%
+      filter(Date <= max_date) %>% 
+      filter(Date >= min_date) %>%
+      group_by(Gender) %>% 
+      summarize(Total_Reach=sum(Reach),
+                Total_Clicks=sum(Clicks),
+                Total_Link_Click=sum(Link_Click),
+                Total_Spent=sum(Spent)) %>%
+      mutate(Total_Cpm=Total_Spent*1000/Total_Reach,
+             Total_Cpc=Total_Spent/Total_Clicks,
+             Total_Ctr=Total_Clicks/Total_Reach,
+             Total_Link_Ctr=Total_Link_Click/Total_Reach,
+             Total_Link_Cpc=Total_Spent/Total_Link_Click)
+    data$Total_Link_Cpc <- ifelse(data$Total_Link_Cpc == "Inf", 
+                                  data$Total_Spent, data$Total_Link_Cpc)
+    data$Total_Cpc <- ifelse(data$Total_Cpc == "Inf", 
+                             data$Total_Spent, data$Total_Cpc)
+    data
+  })
+  #plot gender
+  output$h38 <- renderChart2({
+    if(is.null(df_age_websiteclick())){return ()}
+    h38 <- Highcharts$new()
+    h38$xAxis(categories = data_gender_websiteclick()$Gender)
+    h38$yAxis(list(list(title = list(text = 'Reach'))
+                   ,list(title = list(text = 'CPM'), opposite = TRUE))) 
+    h38$series(name = 'Reach', type = 'column', color = '#4572A7',
+               data = data_gender_websiteclick()$Total_Reach)
+    h38$series(name = 'CPM', type = 'spline', color = '#006600',
+               data = data_gender_websiteclick()$Total_Cpm,
+               yAxis = 1)
+    h38$title(text =("Reach/CPM vs Gender"))
+    return(h38)
+  })
+  output$h39 <- renderChart2({
+    if(is.null(df_age_websiteclick())){return ()}
+    h39 <- Highcharts$new()
+    h39$xAxis(categories = data_gender_websiteclick()$Gender)
+    h39$yAxis(list(list(title = list(text = 'Clicks'))
+                   ,list(title = list(text = 'CTR'), opposite = TRUE)
+                   ,list(title = list(text = 'CPC'), opposite = TRUE)))
+    h39$series(name = 'Clicks', type = 'column', color = '#4572A7',
+               data = data_gender_websiteclick()$Total_Clicks)
+    h39$series(name = 'CTR', type = 'spline', color = '#FF9655',
+               data = data_gender_websiteclick()$Total_Ctr,
+               yAxis = 1)
+    h39$series(name = 'CPC', type = 'spline', color = '#AA4643',
+               data = data_gender_websiteclick()$Total_Cpc,
+               yAxis = 2)
+    h39$title(text =("Clicks/CTR/CPC vs Gender"))
+    return(h39)
+  })
+  
+  ##Gender Age Plot
+  #generate a gender age df
+  data_gender_age_websiteclick<- reactive({
+    data<-df_age_websiteclick()
+    min_date<-input$date_range[1]
+    max_date<-input$date_range[2]
+    data<- data %>%
+      filter(Date <= max_date) %>% 
+      filter(Date >= min_date) %>%
+      group_by(Gender, Age) %>% 
+      summarize(Total_Reach=sum(Reach),
+                Total_Clicks=sum(Clicks),
+                Total_Link_Click=sum(Link_Click),
+                Total_Spent=sum(Spent)) 
+    data
+  })
+  #plot gender age
+  output$n5 <- renderChart2({
+    if(is.null(df_age_websiteclick())){return ()}
+    n5 <- nPlot(Total_Reach ~ Gender, group = "Age", data = data_gender_age_websiteclick(), type = "multiBarChart")
+    #n1$set(width = 400, height = 400) # mk changed width to 800 and height to 500
+    n5$templates$script <- "http://timelyportfolio.github.io/rCharts_nvd3_templates/chartWithTitle_styled.html"
+    n5$set(title = "Reach---Gender vs Age")
+    n5$addParams(dom="n5")
+    return(n5)
+  })
+  output$n6 <- renderChart2({
+    if(is.null(df_age_websiteclick())){return ()}
+    n6 <- nPlot(Total_Clicks ~ Gender, group = "Age", data = data_gender_age_websiteclick(), type = "multiBarChart")
+    n6$templates$script <- "http://timelyportfolio.github.io/rCharts_nvd3_templates/chartWithTitle_styled.html"
+    n6$set(title = "Clicks---Gender vs Age")
+    n6$addParams(dom="n6")
+    return(n6)
+  })
+  
+  ##CreativeSet Plot
+  #generate a creativeset df
+  data_creative_websiteclick<- reactive({
+    data<-df_age_websiteclick()
+    x<-dim(data)[2]+1
+    y<-dim(data)[2]+3
+    min_date<-input$date_range[1]
+    max_date<-input$date_range[2]
+    data<-cbind(data,str_split_fixed(data$Ad.Set, "_", 5)[,1:2])
+    data<-cbind(data,str_split_fixed(data$Ad.Set, "_", 5)[,5])
+    colnames(data)[x:y]<-c("Creative_Set","TA","Bid_Type")
+    data<- data %>%
+      filter(Date <= max_date) %>% 
+      filter(Date >= min_date) %>%
+      group_by(Creative_Set) %>% 
+      summarize(Total_Reach=sum(Reach),
+                Total_Clicks=sum(Clicks),
+                Total_Link_Click=sum(Link_Click),
+                Total_Spent=sum(Spent)) %>%
+      mutate(Total_Cpm=Total_Spent*1000/Total_Reach,
+             Total_Cpc=Total_Spent/Total_Clicks,
+             Total_Ctr=Total_Clicks/Total_Reach,
+             Total_Link_Ctr=Total_Link_Click/Total_Reach,
+             Total_Link_Cpc=Total_Spent/Total_Link_Click)
+    data$Total_Link_Cpc <- ifelse(data$Total_Link_Cpc == "Inf", 
+                                  data$Total_Spent, data$Total_Link_Cpc)
+    data$Total_Cpc <- ifelse(data$Total_Cpc == "Inf", 
+                             data$Total_Spent, data$Total_Cpc)
+    data
+  })
+  #plot creativeset
+  output$h40 <- renderChart2({
+    if(is.null(df_age_websiteclick())){return ()}
+    h40 <- Highcharts$new()
+    h40$xAxis(categories = data_creative_websiteclick()$Creative_Set)
+    h40$yAxis(list(list(title = list(text = 'Reach'))
+                   ,list(title = list(text = 'CPM'), opposite = TRUE)))
+    h40$series(name = 'Reach', type = 'column', color = '#4572A7',
+               data = data_creative_websiteclick()$Total_Reach)
+    h40$series(name = 'CPM', type = 'spline', color = '#006600',
+               data = data_creative_websiteclick()$Total_Cpm,
+               yAxis = 1)
+    h40$title(text =("Reach/CPM vs CreativeSet"))
+    return(h40)
+  })
+  output$h41 <- renderChart2({
+    if(is.null(df_age_websiteclick())){return ()}
+    h41 <- Highcharts$new()
+    h41$xAxis(categories = data_creative_websiteclick()$Creative_Set)
+    h41$yAxis(list(list(title = list(text = 'Clicks'))
+                   ,list(title = list(text = 'CTR'), opposite = TRUE)
+                   ,list(title = list(text = 'CPC'), opposite = TRUE)))
+    h41$series(name = 'Clicks', type = 'column', color = '#4572A7',
+               data = data_creative_websiteclick()$Total_Clicks)
+    h41$series(name = 'CTR', type = 'spline', color = '#FF9655',
+               data = data_creative_websiteclick()$Total_Ctr,
+               yAxis = 1)
+    h41$series(name = 'CPC', type = 'spline', color = '#AA4643',
+               data = data_creative_websiteclick()$Total_Cpc,
+               yAxis = 2)
+    h41$title(text =("Clicks/CTR/CPC vs CreativeSet"))
+    return(h41)
+  })
+  
+  ##Placement Plot
+  #generate a placement df
+  data_placement_websiteclick<- reactive({
+    data<-df_device_websiteclick()
+    min_date<-input$date_range[1]
+    max_date<-input$date_range[2]
+    #     data2<-cbind(data,Placement_Type=data$Placement)
+    #     data2$Placement_Type<-as.character(data2$Placement_Type)
+    #     data2$Placement_Type[data2$Placement_Type=="行動裝置上的動態消息"] <-c("行動裝置")
+    #     data2$Placement_Type[data2$Placement_Type=="行動裝置的Instagram"] <-c("行動裝置")
+    #     data2$Placement_Type[data2$Placement_Type=="第三方行動應用程式上的行動廣告"] <-c("行動裝置")
+    #     data2$Placement_Type[data2$Placement_Type=="桌面電腦的動態消息"] <-c("桌面電腦")
+    #     data2$Placement_Type[data2$Placement_Type=="桌面電腦的右欄廣告"] <-c("桌面電腦")
+    #     data2$Placement_Type[data2$Placement_Type=="桌面版電腦的首頁右欄廣告"] <-c("桌面電腦")
+    data<- data %>%
+      filter(Date <= max_date) %>% 
+      filter(Date >= min_date) %>%
+      group_by(Placement) %>% 
+      summarize(Total_Reach=sum(Reach),
+                Total_Clicks=sum(Clicks),
+                Total_Link_Click=sum(Link_Click),
+                Total_Spent=sum(Spent)) %>%
+      mutate(Total_Cpm=Total_Spent*1000/Total_Reach,
+             Total_Cpc=Total_Spent/Total_Clicks,
+             Total_Ctr=Total_Clicks/Total_Reach,
+             Total_Link_Ctr=Total_Link_Click/Total_Reach,
+             Total_Link_Cpc=Total_Spent/Total_Link_Click)
+    data$Total_Link_Cpc <- ifelse(data$Total_Link_Cpc == "Inf", 
+                                  data$Total_Spent, data$Total_Link_Cpc)
+    data$Total_Cpc <- ifelse(data$Total_Cpc == "Inf", 
+                             data$Total_Spent, data$Total_Cpc)
+    data
+  })
+  #plot placement
+  output$h42 <- renderChart2({
+    if(is.null(df_device_websiteclick())){return ()}
+    h42 <- Highcharts$new()
+    h42$xAxis(categories = data_placement_websiteclick()$Placement)
+    h42$yAxis(list(list(title = list(text = 'Reach'))
+                   ,list(title = list(text = 'CPM'), opposite = TRUE))) 
+    h42$series(name = 'Reach', type = 'column', color = '#4572A7',
+               data = data_placement_websiteclick()$Total_Reach)
+    h42$series(name = 'CPM', type = 'spline', color = '#006600',
+               data = data_placement_websiteclick()$Total_Cpm,
+               yAxis = 1)
+    h42$title(text =("Reach/CPM vs Placement"))
+    return(h42)
+  })
+  output$h43 <- renderChart2({
+    if(is.null(df_device_websiteclick())){return ()}
+    h43 <- Highcharts$new()
+    h43$xAxis(categories = data_placement_websiteclick()$Placement)
+    h43$yAxis(list(list(title = list(text = 'Clicks'))
+                   ,list(title = list(text = 'CTR'), opposite = TRUE)
+                   ,list(title = list(text = 'CPC'), opposite = TRUE)))
+    h43$series(name = 'Clicks', type = 'column', color = '#4572A7',
+               data = data_placement_websiteclick()$Total_Clicks)
+    h43$series(name = 'CTR', type = 'spline', color = '#FF9655',
+               data = data_placement_websiteclick()$Total_Ctr,
+               yAxis = 1)
+    h43$series(name = 'CPC', type = 'spline', color = '#AA4643',
+               data = data_placement_websiteclick()$Total_Cpc,
+               yAxis = 2)
+    h43$title(text =("Clicks/CTR/CPC vs Placement"))
+    return(h43)
+  })
+  
+  ##Device Plot
+  #generate a device df
+  data_device_websiteclick<- reactive({
+    data<-df_device_websiteclick()
+    min_date<-input$date_range[1]
+    max_date<-input$date_range[2]
+    data<- data %>%
+      filter(Date <= max_date) %>% 
+      filter(Date >= min_date) %>%
+      group_by(Device) %>% 
+      summarize(Total_Reach=sum(Reach),
+                Total_Clicks=sum(Clicks),
+                Total_Link_Click=sum(Link_Click),
+                Total_Spent=sum(Spent)) %>%
+      mutate(Total_Cpm=Total_Spent*1000/Total_Reach,
+             Total_Cpc=Total_Spent/Total_Clicks,
+             Total_Ctr=Total_Clicks/Total_Reach,
+             Total_Link_Ctr=Total_Link_Click/Total_Reach,
+             Total_Link_Cpc=Total_Spent/Total_Link_Click)
+    data$Total_Link_Cpc <- ifelse(data$Total_Link_Cpc == "Inf", 
+                                  data$Total_Spent, data$Total_Link_Cpc)
+    data$Total_Cpc <- ifelse(data$Total_Cpc == "Inf", 
+                             data$Total_Spent, data$Total_Cpc)
+    data
+  })
+  #plot device
+  output$h44 <- renderChart2({
+    if(is.null(df_device_websiteclick())){return ()}
+    h44 <- Highcharts$new()
+    h44$xAxis(categories = data_device_websiteclick()$Device)
+    h44$yAxis(list(list(title = list(text = 'Reach'))
+                   ,list(title = list(text = 'CPM'), opposite = TRUE))) 
+    h44$series(name = 'Reach', type = 'column', color = '#4572A7',
+               data = data_device_websiteclick()$Total_Reach)
+    h44$series(name = 'CPM', type = 'spline', color = '#006600',
+               data = data_device_websiteclick()$Total_Cpm,
+               yAxis = 1)
+    h44$title(text =("Reach/CPM vs Device"))
+    return(h44)
+  })
+  output$h45 <- renderChart2({
+    if(is.null(df_device_websiteclick())){return ()}
+    h45 <- Highcharts$new()
+    h45$xAxis(categories = data_device_websiteclick()$Device)
+    h45$yAxis(list(list(title = list(text = 'Clicks'))
+                   ,list(title = list(text = 'CTR'), opposite = TRUE)
+                   ,list(title = list(text = 'CPC'), opposite = TRUE)))
+    h45$series(name = 'Clicks', type = 'column', color = '#4572A7',
+               data = data_device_websiteclick()$Total_Clicks)
+    h45$series(name = 'CTR', type = 'spline', color = '#FF9655',
+               data = data_device_websiteclick()$Total_Ctr,
+               yAxis = 1)
+    h45$series(name = 'CPC', type = 'spline', color = '#AA4643',
+               data = data_device_websiteclick()$Total_Cpc,
+               yAxis = 2)
+    h45$title(text =("Clicks/CTR/CPC vs Device"))
+    return(h45)
+  })
+  
+  ######################################受眾########################################
+  ##############Install###################
   ###Table
   #generate a table
   data_ta_table<- reactive({
@@ -1231,9 +2172,97 @@ comment<-{
     return(h22)
   })
   
+  ##############WebsiteClick###################
+  ###Table
+  #generate a table
+  data_ta_table_websiteclick<- reactive({
+    data<-df_age_websiteclick()
+    x<-dim(data)[2]+1
+    y<-dim(data)[2]+3
+    min_date<-input$date_range[1]
+    max_date<-input$date_range[2]
+    data<-cbind(data,str_split_fixed(data$Ad.Set, "_", 5)[,1:2])
+    data<-cbind(data,str_split_fixed(data$Ad.Set, "_", 5)[,5])
+    colnames(data)[x:y]<-c("Creative_Set","TA","Bid_Type")
+    data<- data %>%
+      filter(Date <= max_date) %>% 
+      filter(Date >= min_date) %>%
+      group_by(TA) %>% 
+      summarize(Total_Reach=sum(Reach),
+                Total_Clicks=sum(Clicks),
+                Total_Link_Click=sum(Link_Click),
+                Total_Spent=sum(Spent)) %>%
+      mutate(Total_Cpm=Total_Spent*1000/Total_Reach,
+             Total_Cpc=Total_Spent/Total_Clicks,
+             Total_Ctr=Total_Clicks/Total_Reach,
+             Total_Link_Ctr=Total_Link_Click/Total_Reach,
+             Total_Link_Cpc=Total_Spent/Total_Link_Click)
+    data$Total_Link_Cpc <- ifelse(data$Total_Link_Cpc == "Inf", 
+                                  data$Total_Spent, data$Total_Link_Cpc)
+    data$Total_Cpc <- ifelse(data$Total_Cpc == "Inf", 
+                             data$Total_Spent, data$Total_Cpc)
+    data
+  })
+  #plot table
+  output$ta_table_websiteclick <- renderDataTable({
+    data_ta_table_websiteclick()
+  })
+  
+  ###Plot
+  ##TA vs date
+  data_ta_date_websiteclick<- reactive({
+    data<-df_age_websiteclick()
+    x<-dim(data)[2]+1
+    y<-dim(data)[2]+3
+    min_date<-input$date_range[1]
+    max_date<-input$date_range[2]
+    data<-cbind(data,str_split_fixed(data$Ad.Set, "_", 5)[,1:2])
+    data<-cbind(data,str_split_fixed(data$Ad.Set, "_", 5)[,5])
+    colnames(data)[x:y]<-c("Creative_Set","TA","Bid_Type")
+    data<- data %>%
+      filter(Date <= max_date) %>% 
+      filter(Date >= min_date) %>%
+      group_by(TA, Date) %>% 
+      summarize(Total_Reach=sum(Reach),
+                Total_Clicks=sum(Clicks),
+                Total_Link_Click=sum(Link_Click),
+                Total_Spent=sum(Spent)) %>%
+      mutate(Total_Cpm=Total_Spent*1000/Total_Reach,
+             Total_Cpc=Total_Spent/Total_Clicks,
+             Total_Ctr=Total_Clicks/Total_Reach,
+             Total_Link_Ctr=Total_Link_Click/Total_Reach,
+             Total_Link_Cpc=Total_Spent/Total_Link_Click)
+    data$Total_Link_Cpc <- ifelse(data$Total_Link_Cpc == "Inf", 
+                                  data$Total_Spent, data$Total_Link_Cpc)
+    data$Total_Cpc <- ifelse(data$Total_Cpc == "Inf", 
+                             data$Total_Spent, data$Total_Cpc)
+    data<-transform(data, Date = as.character(Date))
+    data
+  })
+  #use the dataframe to plot out the basic plots
+  output$h59 <- renderChart2({
+    if(is.null(df_age_websiteclick())){return ()}
+    
+    h59 <- Highcharts$new()
+    h59 <- hPlot(x = "Date", y = "Total_Reach",
+                data = data_ta_date_websiteclick(), type = "line", group = "TA")
+    h59$title(text =("Reach vs Date (by Category)"))
+    return(h59)
+  })
+  
+  output$h60 <- renderChart2({
+    if(is.null(df_age_websiteclick())){return ()}
+    
+    h60 <- Highcharts$new()
+    h60 <- hPlot(x = "Date", y = "Total_Clicks",
+                 data = data_ta_date_websiteclick(), type = "line", group = "TA")
+    h60$title(text =("Clicks vs Date (by Category)"))
+    return(h60)
+  })
   
   
-  ####素材####
+  #######################################素材#######################################
+  ##############Install###################
   ###Table
   #generate a table
   data_creative_table<- reactive({
@@ -1344,69 +2373,291 @@ comment<-{
     return(h32)
   })
   
+  ##############WebsiteClick###################
+  ###Table
+  #generate a table
+  data_creative_table_websiteclick<- reactive({
+    data<-df_age_websiteclick()
+    x<-dim(data)[2]+1
+    y<-dim(data)[2]+3
+    min_date<-input$date_range[1]
+    max_date<-input$date_range[2]
+    data<-cbind(data,str_split_fixed(data$Ad.Set, "_", 5)[,1:2])
+    data<-cbind(data,str_split_fixed(data$Ad.Set, "_", 5)[,5])
+    colnames(data)[x:y]<-c("Creative_Set","TA","Bid_Type")
+    data<- data %>%
+      filter(Date <= max_date) %>% 
+      filter(Date >= min_date) %>%
+      group_by(Creative_Set) %>% 
+      summarize(Total_Reach=sum(Reach),
+                Total_Clicks=sum(Clicks),
+                Total_Link_Click=sum(Link_Click),
+                Total_Spent=sum(Spent)) %>%
+      mutate(Total_Cpm=Total_Spent*1000/Total_Reach,
+             Total_Cpc=Total_Spent/Total_Clicks,
+             Total_Ctr=Total_Clicks/Total_Reach,
+             Total_Link_Ctr=Total_Link_Click/Total_Reach,
+             Total_Link_Cpc=Total_Spent/Total_Link_Click)
+    data$Total_Link_Cpc <- ifelse(data$Total_Link_Cpc == "Inf", 
+                                  data$Total_Spent, data$Total_Link_Cpc)
+    data$Total_Cpc <- ifelse(data$Total_Cpc == "Inf", 
+                             data$Total_Spent, data$Total_Cpc)
+    data
+  })
+  #plot table
+  output$creative_table_websiteclick <- renderDataTable({
+    data_creative_table_websiteclick()
+  })
+  
+  ###Plot
+  ##separate each creativeset in a plot dynamically
+  #generate a df 
+  data_creative_ad_websiteclick<- reactive({
+    data<-df_age_websiteclick()
+    x<-dim(data)[2]+1
+    y<-dim(data)[2]+3
+    min_date<-input$date_range[1]
+    max_date<-input$date_range[2]
+    selected_creativeset<- input$creative_input
+    data<-cbind(data,str_split_fixed(data$Ad.Set, "_", 5)[,1:2])
+    data<-cbind(data,str_split_fixed(data$Ad.Set, "_", 5)[,5])
+    colnames(data)[x:y]<-c("Creative_Set","TA","Bid_Type")
+    data<- data %>%
+      filter(Creative_Set==selected_creativeset) %>%
+      filter(Date <= max_date) %>% 
+      filter(Date >= min_date) %>%
+      group_by(Ad) %>% 
+      summarize(Total_Reach=sum(Reach),
+                Total_Clicks=sum(Clicks),
+                Total_Link_Click=sum(Link_Click),
+                Total_Spent=sum(Spent)) %>%
+      mutate(Total_Cpm=Total_Spent*1000/Total_Reach,
+             Total_Cpc=Total_Spent/Total_Clicks,
+             Total_Ctr=Total_Clicks/Total_Reach,
+             Total_Link_Ctr=Total_Link_Click/Total_Reach,
+             Total_Link_Cpc=Total_Spent/Total_Link_Click)
+    data$Total_Link_Cpc <- ifelse(data$Total_Link_Cpc == "Inf", 
+                                  data$Total_Spent, data$Total_Link_Cpc)
+    data$Total_Cpc <- ifelse(data$Total_Cpc == "Inf", 
+                             data$Total_Spent, data$Total_Cpc)
+    data
+  })
+  #plot it dynamically
+  
+  output$h61<-renderChart2({
+    h61 <- Highcharts$new()
+    h61$xAxis(categories = data_creative_ad_websiteclick()$Ad)
+    h61$yAxis(list(list(title = list(text = 'Reach'))
+                   ,list(title = list(text = 'CPM'), opposite = TRUE))) 
+    h61$series(name = 'Reach', type = 'column', color = '#4572A7',
+               data = data_creative_ad_websiteclick()$Total_Reach)
+    h61$series(name = 'CPM', type = 'spline', color = '#006600',
+               data = data_creative_ad_websiteclick()$Total_Cpm,
+               yAxis = 1)
+    h61$title(text =("Reach/CPM vs Ad"))
+    return(h61)
+  })
+  
+  output$h62 <- renderChart2({
+    h62 <- Highcharts$new()
+    h62$xAxis(categories = data_creative_ad_websiteclick()$Ad)
+    h62$yAxis(list(list(title = list(text = 'Clicks'))
+                   ,list(title = list(text = 'CTR'), opposite = TRUE)
+                   ,list(title = list(text = 'CPC'), opposite = TRUE)))
+    h62$series(name = 'Clicks', type = 'column', color = '#4572A7',
+               data = data_creative_ad_websiteclick()$Total_Clicks)
+    h62$series(name = 'CTR', type = 'spline', color = '#FF9655',
+               data = data_creative_ad_websiteclick()$Total_Ctr,
+               yAxis = 1)
+    h62$series(name = 'CPC', type = 'spline', color = '#AA4643',
+               data = data_creative_ad_websiteclick()$Total_Cpc,
+               yAxis = 2)
+    h62$title(text =("Clicks/CTR/CPC vs Ad"))
+    return(h62)
+  })
+  
+  
+  
+  #######################################tb area#######################################
   output$tb <- renderUI({
     if(is.null(df_1())){
       h4("歡迎歡迎!!"
       ,br()
       ,br()
       ,br()      
+      ,br()
+      ,br()
       ,h5("目前支援檔案類型：")
       ,h5("1. 應用程式安裝")
+      ,h5("2. 網站點擊")
       )
     }
     else{
       tabsetPanel(tabPanel("組合",
-                           dataTableOutput(outputId="adset_table"),
-                           showOutput("h5", "highcharts"),
-                           showOutput("h6", "highcharts"),
-                           showOutput("h7", "highcharts"),
-                           showOutput("h16", "highcharts"),
-                           showOutput("h17", "highcharts"),
-                           showOutput("h20", "highcharts"),
-                           showOutput("h21", "highcharts"),
-                           showOutput("h18", "highcharts"),
-                           showOutput("h19", "highcharts"),
-                           showOutput("h27", "highcharts"),
-                           showOutput("h28", "highcharts"),
-                           showOutput("h29", "highcharts"),
-                           showOutput("h30", "highcharts"),
-                           showOutput("n3", "nvd3"),
+                           dataTableOutput(outputId=paste(
+                             if(!is.null(df_age_install())){"adset_table"
+                             }else if(!is.null(df_age_websiteclick())){"adset_table_websiteclick"})),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"h5"
+                             }else if(!is.null(df_age_websiteclick())){"h46"})
+                             , "highcharts"),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"h6"
+                             }else if(!is.null(df_age_websiteclick())){"h47"})
+                             , "highcharts"),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"h7"
+                             }else if(!is.null(df_age_websiteclick())){"h48"})
+                             , "highcharts"),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"h16"
+                             }else if(!is.null(df_age_websiteclick())){"h49"})
+                             , "highcharts"),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"h17"
+                             }else if(!is.null(df_age_websiteclick())){"h50"})
+                             , "highcharts"),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"h20"
+                             }else if(!is.null(df_age_websiteclick())){"h51"})
+                             , "highcharts"),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"h21"
+                             }else if(!is.null(df_age_websiteclick())){"h52"})
+                             , "highcharts"),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"h18"
+                             }else if(!is.null(df_age_websiteclick())){"h53"})
+                             , "highcharts"),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"h19"
+                             }else if(!is.null(df_age_websiteclick())){"h54"})
+                             , "highcharts"),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"h27"
+                             }else if(!is.null(df_age_websiteclick())){"h55"})
+                             , "highcharts"),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"h28"
+                             }else if(!is.null(df_age_websiteclick())){"h56"})
+                             , "highcharts"),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"h29"
+                             }else if(!is.null(df_age_websiteclick())){"h57"})
+                             , "highcharts"),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"h30"
+                             }else if(!is.null(df_age_websiteclick())){"h58"})
+                             , "highcharts"),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"n3"
+                             }else if(!is.null(df_age_websiteclick())){"n7"})
+                             , "nvd3"),
                            br(),
                            br(),
-                           showOutput("n4", "nvd3")
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"n4"
+                             }else if(!is.null(df_age_websiteclick())){"n8"})
+                             , "nvd3")
                            ),
                   tabPanel("活動",
-                           dataTableOutput(outputId="campaign_table")
-                            ),
+                           dataTableOutput(outputId=paste(
+                             if(!is.null(df_age_install())){"campaign_table"
+                             }else if(!is.null(df_age_websiteclick())){"campaign_table_websiteclick"})
+                            )
+                           ),
                   tabPanel("總覽",
-                           dataTableOutput(outputId="summary_table"),
-                           showOutput("h1", "highcharts"),
-                           showOutput("h2", "highcharts"),
-                           showOutput("h3", "highcharts"),
-                           showOutput("h8", "highcharts"),
-                           showOutput("h9", "highcharts"),
-                           showOutput("h14", "highcharts"),
-                           showOutput("h15", "highcharts"),
-                           showOutput("h10", "highcharts"),
-                           showOutput("h11", "highcharts"),
-                           showOutput("h23", "highcharts"),
-                           showOutput("h24", "highcharts"),
-                           showOutput("h25", "highcharts"),
-                           showOutput("h26", "highcharts"),
-                           showOutput("n1", "nvd3"),
+                           dataTableOutput(outputId=paste(
+                             if(!is.null(df_age_install())){"summary_table"
+                             }else if(!is.null(df_age_websiteclick())){"summary_table_websiteclick"})),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"h1"
+                               }else if(!is.null(df_age_websiteclick())){"h33"})
+                             , "highcharts"),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"h2"
+                             }else if(!is.null(df_age_websiteclick())){"h34"})
+                             , "highcharts"),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"h3"
+                             }else if(!is.null(df_age_websiteclick())){"h35"})
+                             , "highcharts"),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"h8"
+                             }else if(!is.null(df_age_websiteclick())){"h36"})
+                             , "highcharts"),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"h9"
+                             }else if(!is.null(df_age_websiteclick())){"h37"})
+                             , "highcharts"),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"h14"
+                             }else if(!is.null(df_age_websiteclick())){"h38"})
+                             , "highcharts"),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"h15"
+                             }else if(!is.null(df_age_websiteclick())){"h39"})
+                             , "highcharts"),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"h10"
+                             }else if(!is.null(df_age_websiteclick())){"h40"})
+                             , "highcharts"),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"h11"
+                             }else if(!is.null(df_age_websiteclick())){"h41"})
+                             , "highcharts"),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"h23"
+                             }else if(!is.null(df_age_websiteclick())){"h42"})
+                             , "highcharts"),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"h24"
+                             }else if(!is.null(df_age_websiteclick())){"h43"})
+                             , "highcharts"),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"h25"
+                             }else if(!is.null(df_age_websiteclick())){"h44"})
+                             , "highcharts"),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"h26"
+                             }else if(!is.null(df_age_websiteclick())){"h45"})
+                             , "highcharts"),
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"n1"
+                             }else if(!is.null(df_age_websiteclick())){"n5"})
+                             , "nvd3"),
                            br(),
                            br(),
-                           showOutput("n2", "nvd3")
+                           showOutput(paste(
+                             if(!is.null(df_age_install())){"n2"
+                             }else if(!is.null(df_age_websiteclick())){"n6"})
+                             , "nvd3")
                             ),
                    tabPanel("受眾",
-                            dataTableOutput(outputId="ta_table"),
-                            showOutput("h4", "highcharts"),
-                            showOutput("h22", "highcharts")
+                            dataTableOutput(outputId=paste(
+                              if(!is.null(df_age_install())){"ta_table"
+                              }else if(!is.null(df_age_websiteclick())){"ta_table_websiteclick"})),
+                            showOutput(paste(
+                              if(!is.null(df_age_install())){"h4"
+                              }else if(!is.null(df_age_websiteclick())){"h59"})
+                              , "highcharts"),
+                            showOutput(paste(
+                              if(!is.null(df_age_install())){"h22"
+                              }else if(!is.null(df_age_websiteclick())){"h60"})
+                              , "highcharts")
                             ),
                    tabPanel("素材",
-                            dataTableOutput(outputId="creative_table"),
-                            showOutput("h31", "highcharts"),
-                            showOutput("h32", "highcharts")
+                            dataTableOutput(outputId=paste(
+                              if(!is.null(df_age_install())){"creative_table"
+                              }else if(!is.null(df_age_websiteclick())){"creative_table_websiteclick"})),
+                            showOutput(paste(
+                              if(!is.null(df_age_install())){"h31"
+                              }else if(!is.null(df_age_websiteclick())){"h61"})
+                              , "highcharts"),
+                            showOutput(paste(
+                              if(!is.null(df_age_install())){"h32"
+                              }else if(!is.null(df_age_websiteclick())){"h62"})
+                              , "highcharts")
                             )
       )}
   })
