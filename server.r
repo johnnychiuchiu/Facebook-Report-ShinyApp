@@ -90,6 +90,28 @@ shinyServer(function(input, output, session){
     }
   })
 
+  # websiteclick df
+    df_age_websiteclick <- reactive({
+      if("連結點擊次數" %in% colnames(df_age())){
+        df_age_websiteclick<-df_age()
+        setnames(df_age_websiteclick,old = c('分析報告開始','行銷活動名稱','廣告組合名稱','廣告名稱','年齡','性別','成果','觸及人數','點擊次數.全部.'
+                                        ,'支出金額..USD.'),new = c('Date','Campaign','Ad.Set','Ad','Age','Gender','link_click','Reach','Clicks','Spent'))
+        df_age_websiteclick
+      }else{
+        return(NULL)
+      }
+    })
+    df_device_websiteclick <- reactive({
+      if("連結點擊次數" %in% colnames(df_device())){
+        df_device_websiteclick<-df_device()
+        setnames(df_device_websiteclick,old = c('分析報告開始','行','廣告組合名稱','廣告名稱','版位','瀏覽次數裝置','成果','觸及人數','點擊次數.全部.'
+                                           ,'支出金額..USD.'),new = c('Date','Campaign','Ad.Set','Ad','Placement','Device','link_click','Reach','Clicks','Spent'))
+        df_device_websiteclick
+      }else{
+        return(NULL)
+      }
+    })
+  
 comment<-{  
 #   ## fanpage df
 #   df_age_fanpage <- reactive({
@@ -101,7 +123,7 @@ comment<-{
 #     }
 #   })
 #   df_device_fanpage <- reactive({
-#     if("粉絲專" %in% colnames(df_device())){
+#     if("粉絲專頁的讚" %in% colnames(df_device())){
 #       df_device_fanpage<-df_device()
 #       df_device_fanpage
 #     }else{
@@ -127,23 +149,7 @@ comment<-{
 #     }
 #   })
 #   
-#   ## websiteclick df
-#   df_age_websiteclick <- reactive({
-#     if("連結點擊次數" %in% colnames(df_age())){
-#       df_age_websiteclick<-df_age()
-#       df_age_websiteclick
-#     }else{
-#       return(NULL)
-#     }
-#   })
-#   df_device_websiteclick <- reactive({
-#     if("連結點擊次數" %in% colnames(df_device())){
-#       df_device_websiteclick<-df_device()
-#       df_device_websiteclick
-#     }else{
-#       return(NULL)
-#     }
-#   })
+#   
 }
     
   observe({
@@ -173,16 +179,19 @@ comment<-{
     x<-dim(data)[2]+1
     data<-cbind(data,str_split_fixed(data$廣告名稱, "0", 2)[,1])
     colnames(data)[x]<-c("Creative_Set")
+    data<-cbind(data,str_split_fixed(data$廣告組合名稱, "_", 6)[,1])
+    colnames(data)[x+1]<-c("Creative_Set_2")
     data$Creative_Set<-as.character(data$Creative_Set)
+    data$Creative_Set_2<-as.character(data$Creative_Set_2)
     data
   })
   
   observe({
     updateSelectInput(session,  "creative_input",
-      choices=unique(df_3()$Creative_Set))
+      choices=unique(df_3()$Creative_Set_2))
   })
   
-  ####廣告組合related####
+  ####廣告related####
   ###Table
   #generate
   data_selected_adset_table <-reactive({
@@ -453,19 +462,20 @@ comment<-{
     data<-df_age_install()
     selected_adset<- input$y_input
     x<-dim(data)[2]+1
-    y<-dim(data)[2]+6
+    y<-dim(data)[2]+7
     min_date<-input$date_range[1]
     max_date<-input$date_range[2]
     data<-cbind(data,str_split_fixed(data$Campaign, "_", 5)[,2:3])
     data<-cbind(data,str_split_fixed(data$Ad.Set, "_", 6)[,2])
     data<-cbind(data,str_split_fixed(data$Ad.Set, "_", 6)[,5:6])
     data<-cbind(data,str_split_fixed(data$Ad, "0", 2)[,1])
-    colnames(data)[x:y]<-c("App","OS","TA","Baha_Category","Bid_Type","Creative_Set")
+    data<-cbind(data,str_split_fixed(data$Ad.Set, "_", 6)[,1])
+    colnames(data)[x:y]<-c("App","OS","TA","Baha_Category","Bid_Type","Creative_Set","Creative_Set_2")
     data<- data %>%
       filter(Ad.Set==selected_adset) %>%
       filter(Date <= max_date) %>% 
       filter(Date >= min_date) %>%
-      group_by(Creative_Set) %>% 
+      group_by(Ad) %>% 
       summarize(Total_Reach=sum(Reach),
                 Total_Clicks=sum(Clicks),
                 Total_Conversions=sum(Conversions),
@@ -483,7 +493,7 @@ comment<-{
   #plot creative
   output$h18 <- renderChart2({
     h18 <- Highcharts$new()
-    h18$xAxis(categories = data_selected_creative()$Creative_Set)
+    h18$xAxis(categories = data_selected_creative()$Ad)
     h18$yAxis(list(list(title = list(text = 'Conversions'))
                    ,list(title = list(text = 'CVR'), opposite = TRUE)
                    ,list(title = list(text = 'CPI'), opposite = TRUE)))
@@ -500,7 +510,7 @@ comment<-{
   })
   output$h19 <- renderChart2({
     h19 <- Highcharts$new()
-    h19$xAxis(categories = data_selected_creative()$Creative_Set)
+    h19$xAxis(categories = data_selected_creative()$Ad)
     h19$yAxis(list(list(title = list(text = 'Clicks'))
                    ,list(title = list(text = 'CTR'), opposite = TRUE)
                    ,list(title = list(text = 'CPC'), opposite = TRUE)))
@@ -527,7 +537,7 @@ comment<-{
     #     data2$Placement_Type<-as.character(data2$Placement_Type)
     #     data2$Placement_Type[data2$Placement_Type=="行動裝置上的動態消息"] <-c("行動裝置")
     #     data2$Placement_Type[data2$Placement_Type=="行動裝置的Instagram"] <-c("行動裝置")
-    #     data2$Placement_Type[data2$Placement_Type=="第三方行動應用程式上的行動廣告聯播網"] <-c("行動裝置")
+    #     data2$Placement_Type[data2$Placement_Type=="第三方行動應用程式上的行動"] <-c("行動裝置")
     #     data2$Placement_Type[data2$Placement_Type=="桌面電腦的動態消息"] <-c("桌面電腦")
     #     data2$Placement_Type[data2$Placement_Type=="桌面電腦的右欄廣告"] <-c("桌面電腦")
     #     data2$Placement_Type[data2$Placement_Type=="桌面版電腦的首頁右欄廣告"] <-c("桌面電腦")
@@ -939,18 +949,19 @@ comment<-{
   data_creative<- reactive({
     data<-df_age_install()
     x<-dim(data)[2]+1
-    y<-dim(data)[2]+6
+    y<-dim(data)[2]+7
     min_date<-input$date_range[1]
     max_date<-input$date_range[2]
     data<-cbind(data,str_split_fixed(data$Campaign, "_", 5)[,2:3])
     data<-cbind(data,str_split_fixed(data$Ad.Set, "_", 6)[,2])
     data<-cbind(data,str_split_fixed(data$Ad.Set, "_", 6)[,5:6])
     data<-cbind(data,str_split_fixed(data$Ad, "0", 2)[,1])
-    colnames(data)[x:y]<-c("App","OS","TA","Baha_Category","Bid_Type","Creative_Set")
+    data<-cbind(data,str_split_fixed(data$Ad.Set, "_", 6)[,1])
+    colnames(data)[x:y]<-c("App","OS","TA","Baha_Category","Bid_Type","Creative_Set","Creative_Set_2")
     data<- data %>%
       filter(Date <= max_date) %>% 
       filter(Date >= min_date) %>%
-      group_by(Creative_Set) %>% 
+      group_by(Creative_Set_2) %>% 
       summarize(Total_Reach=sum(Reach),
                 Total_Clicks=sum(Clicks),
                 Total_Conversions=sum(Conversions),
@@ -968,7 +979,7 @@ comment<-{
   #plot creativeset
   output$h10 <- renderChart2({
     h10 <- Highcharts$new()
-    h10$xAxis(categories = data_creative()$Creative_Set)
+    h10$xAxis(categories = data_creative()$Creative_Set_2)
     h10$yAxis(list(list(title = list(text = 'Conversions'))
                    ,list(title = list(text = 'CVR'), opposite = TRUE)
                    ,list(title = list(text = 'CPI'), opposite = TRUE)))
@@ -985,7 +996,7 @@ comment<-{
   })
   output$h11 <- renderChart2({
     h11 <- Highcharts$new()
-    h11$xAxis(categories = data_creative()$Creative_Set)
+    h11$xAxis(categories = data_creative()$Creative_Set_2)
     h11$yAxis(list(list(title = list(text = 'Clicks'))
                    ,list(title = list(text = 'CTR'), opposite = TRUE)
                    ,list(title = list(text = 'CPC'), opposite = TRUE)))
@@ -1009,12 +1020,12 @@ comment<-{
     max_date<-input$date_range[2]
 #     data2<-cbind(data,Placement_Type=data$Placement)
 #     data2$Placement_Type<-as.character(data2$Placement_Type)
-#     data2$Placement_Type[data2$Placement_Type=="行動裝置上的動態消息"] <-c("行動裝置")
+#     data2$Placement_Type[data2$Placement_Type=="行"] <-c("行動裝置")
 #     data2$Placement_Type[data2$Placement_Type=="行動裝置的Instagram"] <-c("行動裝置")
-#     data2$Placement_Type[data2$Placement_Type=="第三方行動應用程式上的行動廣告"] <-c("行動裝置")
+#     data2$Placement_Type[data2$Placement_Type=="第三方行動應用程式上的行動廣告聯播網"] <-c("行動裝置")
 #     data2$Placement_Type[data2$Placement_Type=="桌面電腦的動態消息"] <-c("桌面電腦")
 #     data2$Placement_Type[data2$Placement_Type=="桌面電腦的右欄廣告"] <-c("桌面電腦")
-#     data2$Placement_Type[data2$Placement_Type=="桌面版電腦的首頁右欄廣告"] <-c("桌面電腦")
+#     data2$Placement_Type[data2$Placement_Type=="桌面版電腦"] <-c("桌面電腦")
     data<- data %>%
       filter(Date <= max_date) %>% 
       filter(Date >= min_date) %>%
@@ -1228,18 +1239,19 @@ comment<-{
   data_creative_table<- reactive({
     data<-df_age_install()
     x<-dim(data)[2]+1
-    y<-dim(data)[2]+6
+    y<-dim(data)[2]+7
     min_date<-input$date_range[1]
     max_date<-input$date_range[2]
     data<-cbind(data,str_split_fixed(data$Campaign, "_", 5)[,2:3])
     data<-cbind(data,str_split_fixed(data$Ad.Set, "_", 6)[,2])
     data<-cbind(data,str_split_fixed(data$Ad.Set, "_", 6)[,5:6])
     data<-cbind(data,str_split_fixed(data$Ad, "0", 2)[,1])
-    colnames(data)[x:y]<-c("App","OS","TA","Baha_Category","Bid_Type","Creative_Set")
+    data<-cbind(data,str_split_fixed(data$Ad.Set, "_", 6)[,1])
+    colnames(data)[x:y]<-c("App","OS","TA","Baha_Category","Bid_Type","Creative_Set","Creative_Set_2")
     data<- data %>%
       filter(Date <= max_date) %>% 
       filter(Date >= min_date) %>%
-      group_by(Creative_Set) %>% 
+      group_by(Creative_Set_2) %>% 
       summarize(Total_Reach=sum(Reach),
                 Total_Clicks=sum(Clicks),
                 Total_Conversions=sum(Conversions),
@@ -1265,7 +1277,7 @@ comment<-{
   data_creative_ad<- reactive({
     data<-df_age_install()
     x<-dim(data)[2]+1
-    y<-dim(data)[2]+6
+    y<-dim(data)[2]+7
     min_date<-input$date_range[1]
     max_date<-input$date_range[2]
     selected_creativeset<- input$creative_input
@@ -1273,9 +1285,10 @@ comment<-{
     data<-cbind(data,str_split_fixed(data$Ad.Set, "_", 6)[,2])
     data<-cbind(data,str_split_fixed(data$Ad.Set, "_", 6)[,5:6])
     data<-cbind(data,str_split_fixed(data$Ad, "0", 2)[,1])
-    colnames(data)[x:y]<-c("App","OS","TA","Baha_Category","Bid_Type","Creative_Set")
+    data<-cbind(data,str_split_fixed(data$Ad.Set, "_", 6)[,1])
+    colnames(data)[x:y]<-c("App","OS","TA","Baha_Category","Bid_Type","Creative_Set","Creative_Set_2")
     data<- data %>%
-      filter(Creative_Set==selected_creativeset) %>%
+      filter(Creative_Set_2==selected_creativeset) %>%
       filter(Date <= max_date) %>% 
       filter(Date >= min_date) %>%
       group_by(Ad) %>% 
